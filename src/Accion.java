@@ -1,13 +1,8 @@
-public class Accion {
+public record Accion(Tipo tipo, Object datos) {
 
-    public static final byte REGISTRAR_USUARIO = 0, ENCOLAR_PEDIDO = 1, PROCESAR_PEDIDO = 2;
-
-    byte tipo;
-
-    Object objeto;
-
-    public Accion(byte tipo, Object objeto){
-        this.tipo = tipo;
-        this.objeto = objeto;
+    public enum Tipo {
+        REGISTRAR_CLIENTE,
+        ENCOLAR_PEDIDO,
+        PROCESAR_PEDIDO
     }
 }

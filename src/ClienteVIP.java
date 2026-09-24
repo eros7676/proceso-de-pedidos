@@ -1,12 +1,20 @@
-public class ClienteVIP extends Cliente{
+import java.math.BigDecimal;
 
+public class ClienteVIP extends Cliente {
 
-    public ClienteVIP(int id, String nombre) {
-        super(id, nombre);
+    private static final BigDecimal FACTOR_DESCUENTO = new BigDecimal("0.70");
+
+    public ClienteVIP(String dni, String nombre) {
+        super(dni, nombre);
     }
 
     @Override
-    public float calcularTotalConDescuento(float montoBase) {
-        return montoBase * 0.7f; // 30% descuento
+    public Tipo getTipo() {
+        return Tipo.VIP;
+    }
+
+    @Override
+    public BigDecimal calcularTotalConDescuento(BigDecimal montoBase) {
+        return redondear(montoBase.multiply(FACTOR_DESCUENTO));
     }
 }

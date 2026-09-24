@@ -1,12 +1,18 @@
-public class ClienteRegular extends Cliente{
+import java.math.BigDecimal;
 
+public class ClienteRegular extends Cliente {
 
-    public ClienteRegular(int id, String nombre) {
-        super(id, nombre);
+    public ClienteRegular(String dni, String nombre) {
+        super(dni, nombre);
     }
 
     @Override
-    public float calcularTotalConDescuento(float montoBase) {
-        return montoBase;
+    public Tipo getTipo() {
+        return Tipo.REGULAR;
+    }
+
+    @Override
+    public BigDecimal calcularTotalConDescuento(BigDecimal montoBase) {
+        return redondear(montoBase);
     }
 }

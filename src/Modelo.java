@@ -1,183 +1,134 @@
-import java.util.*;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class Modelo {
 
-    private HashMap<String, Cliente> clientes;
-    private int contador;
+    private final Map<String, Cliente> clientes = new HashMap<>();
+    private final ArrayDeque<Pedido> cola = new ArrayDeque<>();
+    private final List<Pedido> pedidosCompletados = new ArrayList<>();
+    private final Deque<Accion> acciones = new ArrayDeque<>();
 
-    private Scanner in;
+    private BigDecimal total = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP);
 
-    private LinkedList<Pedido> cola;
-    private ArrayList<Pedido> pedidosCompletados;
+    public String registrarCliente(String dni, String nombre, Cliente.Tipo tipo) {
+        String dniNormalizado = normalizarDni(dni);
+        String nombreNormalizado = nombre == null ? "" : nombre.trim();
 
-    private float total;
-
-    private LinkedList<Accion> acciones;
-
-    public Modelo(){
-        clientes = new HashMap<>();
-        cola = new LinkedList<>();
-        acciones = new LinkedList<>();
-    }
-
-    public void bucle(){
-        in = new Scanner(System.in);
-
-        boolean flag = true;
-
-        while (flag){
-
-            System.out.println("""
-                    === SISTEMA DE LOGÍSTICA Y PEDIDOS ===
-                    1. Registrar un nuevo cliente (Guarda en el Map)
-                    2. Encolar un nuevo pedido (Entra a la Queue)
-                    3. Procesar siguiente pedido de la cola (Saca de la Queue, calcula total y pasa a List)
-                    4. Deshacer última operación (Usa el Stack para revertir)
-                    5. Buscar cliente por DNI (Usa el Map)
-                    6. Ver reporte de pedidos procesados y recaudación total
-                    7. Salir
-                    """);
-
-            int opcion = in.nextInt();
-            in.nextLine();
-
-            switch(opcion){
-                case 1:
-                    registrarCliente();
-                    break;
-                case 2:
-                    encolarPedido();
-                    break;
-                case 3:
-                    procesarSiguientePedido();
-                    break;
-                case 4:
-                    deshacer();
-                    break;
-                case 5:
-                    obtenerCliente();
-                    break;
-                case 6:
-                    verPedidosCompletadosYTotal();
-                    break;
-                case 7:
-                    flag = false;
-                    break;
-            }
+        if (dniNormalizado.isEmpty()) {
+            return "El DNI no puede estar vacío.";
         }
-    }
+        if (nombreNormalizado.isEmpty()) {
+            return "El nombre no puede estar vacío.";
+        }
+        if (tipo == null) {
+            return "Tipo de cliente inválido.";
+        }
+        if (clientes.containsKey(dniNormalizado)) {
+            return "Ya existe un cliente con DNI " + dniNormalizado + ".";
+        }
 
-    public void registrarCliente(){
-
-        System.out.println("Ingrese DNI");
-        String dni = in.nextLine();
-
-        System.out.println("Ingrese Nombre");
-        String nombre = in.nextLine();
-
-        Cliente cliente;
-
-        System.out.println("""
-                1. Regular
-                2. VIP
-                """);
-        cliente = switch (in.nextInt()) {
-            case 1 -> new ClienteRegular(contador++, nombre);
-            case 2 -> new ClienteVIP(contador++, nombre);
-            default -> null;
+        Cliente cliente = switch (tipo) {
+            case REGULAR -> new ClienteRegular(dniNormalizado, nombreNormalizado);
+            case VIP -> new ClienteVIP(dniNormalizado, nombreNormalizado);
         };
 
-        clientes.put(dni, cliente);
-        System.out.println("Cliente registrado!");
-
-        acciones.addLast(new Accion(Accion.REGISTRAR_USUARIO, dni));
+        clientes.put(dniNormalizado, cliente);
+        acciones.addLast(new Accion(Accion.Tipo.REGISTRAR_CLIENTE, dniNormalizado));
+        return "Cliente registrado: " + cliente;
     }
 
-    public void encolarPedido(){
-
-        System.out.println("Ingrese dni de cliente");
-        String dni = in.nextLine();
-
-        System.out.println("Ingrese el monto");
-        float monto = in.nextFloat();
-        
-        Pedido pedido = new Pedido(clientes.get(dni), monto);
-
-        cola.addLast(pedido);
-
-        acciones.addLast(new Accion(Accion.ENCOLAR_PEDIDO, null));
-    }
-
-    public void procesarSiguientePedido(){
-        Pedido pedido = cola.pollFirst();
-
-        this.total += pedido.cliente.calcularTotalConDescuento(pedido.monto);
-
-        pedidosCompletados.add(pedido);
-
-        acciones.addLast(new Accion(Accion.PROCESAR_PEDIDO, pedido));
-    }
-
-    public void deshacer(){
-
-        Accion accion = acciones.pollLast();
-
-        switch (accion.tipo){
-            case Accion.REGISTRAR_USUARIO:
-                String dni = (String) accion.objeto;
-
-                // eliminar cliente
-                clientes.remove(dni);
-                break;
-            case Accion.ENCOLAR_PEDIDO:
-                cola.removeLast();
-                break;
-            case Accion.PROCESAR_PEDIDO:
-                Pedido pedido = (Pedido) accion.objeto;
-
-                // sacarlo de pedidos completados
-                pedidosCompletados.removeLast();
-
-                // restarlo del total
-                total -= pedido.cliente.calcularTotalConDescuento(pedido.monto);
-
-                // volverlo a poner en la cola (primero)
-                cola.addFirst(pedido);
-                break;
+    public String encolarPedido(String dni, BigDecimal monto) {
+        Cliente cliente = clientes.get(normalizarDni(dni));
+        if (cliente == null) {
+            return "No hay un cliente registrado con ese DNI.";
+        }
+        if (monto == null || monto.compareTo(BigDecimal.ZERO) <= 0) {
+            return "El monto debe ser mayor a 0.";
         }
 
+        Pedido pedido = new Pedido(cliente, monto);
+        cola.add(pedido);
+        acciones.addLast(new Accion(Accion.Tipo.ENCOLAR_PEDIDO, pedido));
+        return "Pedido encolado: " + pedido;
     }
 
-    public void obtenerCliente(){
-        System.out.println("Ingrese dni de cliente");
-        String dni = in.nextLine();
+    public String procesarSiguientePedido() {
+        Pedido pedido = cola.poll();
+        if (pedido == null) {
+            return "No hay pedidos en la cola.";
+        }
 
-        System.out.println(clientes.get(dni));
+        total = total.add(pedido.getMontoFinal());
+        pedidosCompletados.add(pedido);
+        acciones.addLast(new Accion(Accion.Tipo.PROCESAR_PEDIDO, pedido));
+        return "Pedido procesado: " + pedido;
     }
 
-    public void verPedidosCompletadosYTotal(){
-        System.out.println(pedidosCompletados);
+    public String deshacer() {
+        Accion accion = acciones.pollLast();
+        if (accion == null) {
+            return "No hay operaciones para deshacer.";
+        }
 
-        System.out.println("Total = " + this.total);
+        return switch (accion.tipo()) {
+            case REGISTRAR_CLIENTE -> deshacerRegistro((String) accion.datos());
+            case ENCOLAR_PEDIDO -> deshacerEncolado((Pedido) accion.datos());
+            case PROCESAR_PEDIDO -> deshacerProcesado((Pedido) accion.datos());
+        };
     }
 
-    public static void main(String[] args) {
+    public String buscarCliente(String dni) {
+        Cliente cliente = clientes.get(normalizarDni(dni));
+        if (cliente == null) {
+            return "No se encontró un cliente con ese DNI.";
+        }
+        return cliente.toString();
+    }
 
-        Modelo modelo = new Modelo();
+    public String reporte() {
+        if (pedidosCompletados.isEmpty()) {
+            return "No hay pedidos procesados.\nTotal = " + total;
+        }
 
-        modelo.bucle();
+        StringBuilder sb = new StringBuilder("Pedidos procesados:\n");
+        for (int i = 0; i < pedidosCompletados.size(); i++) {
+            sb.append(i + 1).append(". ").append(pedidosCompletados.get(i)).append('\n');
+        }
+        sb.append("Total = ").append(total);
+        return sb.toString();
+    }
+
+    private String deshacerRegistro(String dni) {
+        Cliente eliminado = clientes.remove(dni);
+        if (eliminado == null) {
+            return "No se pudo deshacer el registro: el cliente ya no está en el sistema.";
+        }
+        return "Se deshizo el registro del cliente " + eliminado.getDni() + ".";
+    }
+
+    private String deshacerEncolado(Pedido pedido) {
+        if (!cola.remove(pedido)) {
+            return "No se pudo deshacer el encolado: el pedido ya no está en la cola.";
+        }
+        return "Se deshizo el encolado del pedido: " + pedido;
+    }
+
+    private String deshacerProcesado(Pedido pedido) {
+        if (!pedidosCompletados.remove(pedido)) {
+            return "No se pudo deshacer el procesamiento: el pedido ya no está en completados.";
+        }
+        total = total.subtract(pedido.getMontoFinal());
+        cola.addFirst(pedido);
+        return "Se deshizo el procesamiento. El pedido volvió al frente de la cola.";
+    }
+
+    private static String normalizarDni(String dni) {
+        return dni == null ? "" : dni.trim();
     }
 }
-
-
-
-/*
-=== SISTEMA DE LOGÍSTICA Y PEDIDOS ===
-1. Registrar un nuevo cliente (Guarda en el Map)
-2. Encolar un nuevo pedido (Entra a la Queue)
-3. Procesar siguiente pedido de la cola (Saca de la Queue, calcula total y pasa a List)
-4. Deshacer última operación (Usa el Stack para revertir)
-5. Buscar cliente por DNI (Usa el Map)
-6. Ver reporte de pedidos procesados y recaudación total
-7. Salir
- */
